@@ -3709,6 +3709,66 @@ const EmbyConfigComponent = ({
     });
   };
 
+  // 导出配置
+  const handleExport = async () => {
+    await withLoading('exportEmby', async () => {
+      try {
+        const response = await fetch('/api/admin/emby/export');
+        if (!response.ok) {
+          const data = await response.json();
+          showError(data.error || '导出失败', showAlert);
+          return;
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `emby-config-${Date.now()}.json`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        showSuccess('导出成功', showAlert);
+      } catch (error) {
+        showError(error instanceof Error ? error.message : '导出失败', showAlert);
+      }
+    });
+  };
+
+  // 导入配置
+  const handleImport = async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      await withLoading('importEmby', async () => {
+        try {
+          const text = await file.text();
+          const data = JSON.parse(text);
+
+          const response = await fetch('/api/admin/emby/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data }),
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            showSuccess('导入成功', showAlert);
+            await refreshConfig();
+          } else {
+            showError(result.error || '导入失败', showAlert);
+          }
+        } catch (error) {
+          showError(error instanceof Error ? error.message : '导入失败', showAlert);
+        }
+      });
+    };
+    input.click();
+  };
+
   // 批量启用
   const handleBatchEnable = async () => {
     if (selectedSources.size === 0) return;
@@ -4208,6 +4268,20 @@ const EmbyConfigComponent = ({
           className={buttonStyles.warning}
         >
           {isLoading('clearEmbyCache') ? '清除中...' : '清除所有缓存'}
+        </button>
+        <button
+          onClick={handleExport}
+          disabled={isLoading('exportEmby')}
+          className={buttonStyles.secondary}
+        >
+          {isLoading('exportEmby') ? '导出中...' : '导出配置'}
+        </button>
+        <button
+          onClick={handleImport}
+          disabled={isLoading('importEmby')}
+          className={buttonStyles.secondary}
+        >
+          {isLoading('importEmby') ? '导入中...' : '导入配置'}
         </button>
       </div>
     </div>
